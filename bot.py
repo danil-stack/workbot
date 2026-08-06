@@ -2,6 +2,7 @@ import os
 import asyncio
 import logging
 import sqlite3
+import psycopg2  # Подключили драйвер для PostgreSQL
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
@@ -14,7 +15,7 @@ from aiogram.enums import ParseMode
 
 # === НАСТРОЙКИ ===
 API_TOKEN = '8998313772:AAHVr2HGJg73_c1ji__al0xAFQ_OJup2iLw'
-ADMIN_ID = 7623928167  # СЮДА_ВСТАВЬТЕ_ВАШ_TELEGRAM_ID (числом)
+ADMIN_ID = 7623928167  # Ваш Telegram ID
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -23,35 +24,63 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# === РАБОТА С БАЗОЙ ДАННЫХ SQLite ===
+# Считываем переменную БД из окружения. Если ее нет — используем локальный SQLite.
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# === РАБОТА С БАЗАМИ ДАННЫХ (Postgres / SQLite) ===
+def get_db_connection():
+    if DATABASE_URL:
+        # Для облака (Postgres)
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        # Для локального ПК (SQLite)
+        return sqlite3.connect('bot_data.db')
+
 def init_db():
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    # Таблица пользователей для рассылки
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY
-        )
-    ''')
-    # Таблица карт
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number TEXT NOT NULL
-        )
-    ''')
+    if DATABASE_URL:
+        # Таблицы для Postgres
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGINT PRIMARY KEY
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS cards (
+                id SERIAL PRIMARY KEY,
+                card_number TEXT NOT NULL
+            )
+        ''')
+    else:
+        # Таблицы для SQLite
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_number TEXT NOT NULL
+            )
+        ''')
     conn.commit()
     conn.close()
 
 def add_user(user_id):
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT OR IGNORE INTO users (id) VALUES (?)', (user_id,))
+    if DATABASE_URL:
+        # Синтаксис ON CONFLICT заменяет sqlite-овский INSERT OR IGNORE
+        cursor.execute('INSERT INTO users (id) VALUES (%s) ON CONFLICT (id) DO NOTHING', (user_id,))
+    else:
+        cursor.execute('INSERT OR IGNORE INTO users (id) VALUES (?)', (user_id,))
     conn.commit()
     conn.close()
 
 def get_users():
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id FROM users')
     users = [row[0] for row in cursor.fetchall()]
@@ -59,14 +88,15 @@ def get_users():
     return users
 
 def add_card(card_number):
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO cards (card_number) VALUES (?)', (card_number,))
+    placeholder = "%s" if DATABASE_URL else "?"
+    cursor.execute(f'INSERT INTO cards (card_number) VALUES ({placeholder})', (card_number,))
     conn.commit()
     conn.close()
 
 def get_cards():
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id, card_number FROM cards')
     cards = cursor.fetchall()
@@ -74,9 +104,10 @@ def get_cards():
     return cards
 
 def delete_card(card_id):
-    conn = sqlite3.connect('bot_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM cards WHERE id = ?', (card_id,))
+    placeholder = "%s" if DATABASE_URL else "?"
+    cursor.execute(f'DELETE FROM cards WHERE id = {placeholder}', (card_id,))
     conn.commit()
     conn.close()
 
