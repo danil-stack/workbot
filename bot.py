@@ -222,8 +222,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await state.set_state(UserStates.waiting_for_crypto_link)
             await message.answer(
                 "👋 <b>Добро пожаловать!</b>\n\n"
-                "Перед началом работы, пожалуйста, отправьте вашу ссылку на счет (чек или адрес) в <b>Crypto Bot (@send)</b>.\n"
-                "Это необходимо для того, чтобы администратор мог производить вам мгновенные выплаты."
+                "Перед началом работы, пожалуйста, отправьте вашу ссылку на многоразовый счет (или адресс кошелька трц20 , в таком случае будет изьята комиссия 5.5$) в <b>Crypto Bot (@send)</b>.\n"
+                "Это необходимо для того, чтобы администратор мог производить вам выплаты."
             )
         else:
             await message.answer(
@@ -239,7 +239,7 @@ async def cmd_wallet(message: types.Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
         return
     await state.set_state(UserStates.updating_crypto_link)
-    await message.answer("Пожалуйста, отправьте новую ссылку на ваш счет в Crypto Bot (@send):")
+    await message.answer("Пожалуйста, отправьте новую ссылку на ваш многоразовый счет в Crypto Bot (@send):")
 
 
 @dp.message(UserStates.waiting_for_crypto_link)
@@ -412,7 +412,7 @@ async def user_send_receipt_prompt(message: types.Message, state: FSMContext):
     crypto_link = get_user_crypto_link(message.from_user.id)
     if not crypto_link:
         await state.set_state(UserStates.waiting_for_crypto_link)
-        await message.answer("Сначала отправьте вашу ссылку на Crypto Bot (@send):")
+        await message.answer("Сначала отправьте вашу ссылку на многоразовый счет в Crypto Bot (@send):")
         return
 
     await state.set_state(UserStates.sending_receipt)
@@ -451,7 +451,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
             await bot.send_document(chat_id=ADMIN_ID, document=message.document.file_id, caption=caption_text, reply_markup=markup)
         
         await state.clear()
-        await message.answer("чек принят , ожидайте оплату")
+        await message.answer("чек дома , ожидайте вывод")
     except Exception as e:
         logging.error(f"Ошибка при пересылке чека админу: {e}")
         await message.answer("Произошла ошибка при отправке чека. Пожалуйста, попробуйте еще раз.")
