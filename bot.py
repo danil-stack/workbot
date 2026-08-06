@@ -244,11 +244,12 @@ async def cmd_wallet(message: types.Message, state: FSMContext):
 
 @dp.message(UserStates.waiting_for_crypto_link)
 async def process_first_crypto_link(message: types.Message, state: FSMContext):
-    link = message.text.strip()
-    if not link:
-        await message.answer("Пожалуйста, отправьте текстовую ссылку.")
+    # Защита от отправки медиафайлов вместо текста
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте именно текстовую ссылку на ваш счет.")
         return
-    
+
+    link = message.text.strip()
     update_user_crypto_link(message.from_user.id, link)
     await state.clear()
     await message.answer(
@@ -259,11 +260,12 @@ async def process_first_crypto_link(message: types.Message, state: FSMContext):
 
 @dp.message(UserStates.updating_crypto_link)
 async def process_update_crypto_link(message: types.Message, state: FSMContext):
-    link = message.text.strip()
-    if not link:
-        await message.answer("Пожалуйста, отправьте текстовую ссылку.")
+    # Защита от отправки медиафайлов вместо текста
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте именно текстовую ссылку.")
         return
-    
+
+    link = message.text.strip()
     update_user_crypto_link(message.from_user.id, link)
     await state.clear()
     await message.answer(
@@ -296,13 +298,17 @@ async def process_add_card(callback: types.CallbackQuery, state: FSMContext):
 async def save_card(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
+    
+    # Защита от отправки медиафайлов вместо текста карты админом
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте номер карты текстом.")
+        return
+
     card_text = message.text.strip()
-    if card_text:
-        add_card(card_text)
-        await state.clear()
-        await message.answer(f"Карта успешно добавлена: {card_text}", reply_markup=get_admin_keyboard())
-    else:
-        await message.answer("Пожалуйста, введите корректный текст.")
+    add_card(card_text)
+    await state.clear()
+    await message.answer(f"Карта успешно добавлена: {card_text}", reply_markup=get_admin_keyboard())
+
 
 @dp.callback_query(F.data.startswith("del_"))
 async def process_delete_card(callback: types.CallbackQuery):
